@@ -15,7 +15,7 @@ def run_RBFN_MNIST_TF():
 
     mnist = input_data.read_data_sets("MNIST_data/", one_hot=True)
 
-    hidden_layer_size = 1000
+    hidden_layer_size = 10
 
     n_centers = hidden_layer_size
     n_input = 784
@@ -28,27 +28,33 @@ def run_RBFN_MNIST_TF():
     np.random.shuffle(perm)
     c = mnist.train.images[perm][:n_centers, :]
 
+    sess = tf.InteractiveSession()
+
     weight = tf.Variable(tf.random_normal([n_centers, n_classes], stddev=0.1))
-    bias = tf.Variable(tf.ones([n_classes]))
+    bias = tf.Variable(tf.random_normal([1, n_classes], stddev=0.1))
+    # print sess.run(weight)
 
     output = rbf_model(x, c, weight, bias)
 
-    cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=y, logits=output))
+    # cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=y, logits=output))
     # cost = cdist_tf(output, y)
+    cost = -tf.reduce_sum(y*tf.log(tf.clip_by_value(output,1e-10,1.0)))
     optimizer = tf.train.GradientDescentOptimizer(0.1).minimize(cost)
 
-    sess = tf.InteractiveSession()
+    
     tf.global_variables_initializer().run()
 
     for _ in range(1000):
         batch_xs, batch_ys = mnist.train.next_batch(100)
         sess.run(optimizer, feed_dict={x: batch_xs, y: batch_ys})
-    # sess.run(optimizer, feed_dict={x: [mnist.train.images[0]], y: [mnist.train.labels[0]]})
+    # sess.run(optimizer, feed_dict={x: mnist.train.images, y: mnist.train.labels})
 
+    print sess.run(weight)
+    print sess.run(bias)
     correct_prediction = tf.equal(tf.argmax(y, 1), tf.argmax(output, 1))
     accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
     # print(sess.run(accuracy, feed_dict={x: mnist.test.images, y: mnist.test.labels}))
-    print(sess.run(accuracy, feed_dict={x: mnist.test.images, y: mnist.test.labels}))
+    print(sess.run(accuracy, feed_dict={x: mnist.train.images, y: mnist.train.labels}))
 
     # cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=pred, labels=y))
     # optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate).minimize(cost)
@@ -84,21 +90,13 @@ def run_RBFN_MNIST_TF():
     #     accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
     #     print("Accuracy:", accuracy.eval({x: mnist.test.images, y: mnist.test.labels}))
 
-def inner_tf(a, b):
-    """
-    Calculates the inner product of two matrices in TensorFlow
-    """
-    return tf.reduce_sum(tf.mul(a,b),1,keep_dims=True)
-
 def cdist_tf(a, b):
     """
     Computes squared Euclidean distance between each pair of the two collections of inputs in Tensorflow
     """
-
-    a_a = tf.matmul(inner_tf(a,a), tf.ones([1, tf.shape(b)[0]]))
-    b_b = tf.matmul(tf.ones([tf.shape(a)[0], 1]), tf.transpose(inner_tf(b,b)))
+    a_a = tf.reduce_sum(a * a, reduction_indices=1, keep_dims=True)
+    b_b = tf.reduce_sum(b * b, reduction_indices=1, keep_dims=False)
     a_b = tf.matmul(a, tf.transpose(b))
-
     return a_a + b_b - 2 * a_b
     
 def rbf_model(x, c, weight, bias):
@@ -106,11 +104,8 @@ def rbf_model(x, c, weight, bias):
     Creates the RBF network model with hidden layer being consists of prototypes selected from random.
     Creates a weight and bias term for the output layer and uses gradient descent to train the model.
     """
-    alpha = 20
-    p = 10
-    min_dist_c = pdist(c)
-    min_dist_c = np.sort(min_dist_c)
-    sigma = (alpha / p) * np.sum(c[:p])
+    dist_c = pdist(c)
+    sigma = 2 * np.sum(dist_c) / c.shape[0]
     beta = 1 / (2 * sigma ** 2)
 
     n_examples = tf.shape(x)[0]
@@ -124,11 +119,15 @@ def rbf_model(x, c, weight, bias):
     sq_dist_tf = cdist_tf(x, c)
     rbf_layer = tf.exp(-1 * beta * sq_dist_tf)
 
+    print rbf_layer
+    print bias
+    print weight
+    print tf.matmul(rbf_layer, weight)
     output = tf.matmul(rbf_layer, weight) + bias
 
     return output
 
-def test():
+def test_linalg():
     mnist = input_data.read_data_sets("MNIST_data/", one_hot=True)
 
     hidden_layer_size = 100
@@ -136,23 +135,56 @@ def test():
     n_centers = hidden_layer_size
     n_input = 784
     n_classes = 10
-    n_examples = 10
+    n_examples = 5000
 
     perm = np.arange(mnist.train.num_examples)
     np.random.shuffle(perm)
     x = mnist.train.images[:n_examples,:]
     y = mnist.train.labels[:n_examples,:]
     c = mnist.train.images[perm][:n_centers,:]
-
+    dist_c = pdist(c)
+    sigma = 2 * np.sum(dist_c) / dist_c.shape[0]
+    beta = 1 / (2 * sigma ** 2)
     sess = tf.InteractiveSession()
-    sq_dist_np = cdist(x, c, 'sqeuclidean')
+    # sq_dist_np = cdist(x, c, 'sqeuclidean')
     sq_dist_tf = cdist_tf(x, c).eval()
+    sq_dist_tf = np.exp(-sq_dist_tf * beta)
+    sq_dist_tf = np.concatenate([np.ones([n_examples, 1]), sq_dist_tf], axis=1)
+    # print sq_dist_tf
+    theta = np.linalg.pinv(np.matmul(np.transpose(sq_dist_tf), sq_dist_tf))
+    theta = np.matmul(theta, np.transpose(sq_dist_tf))
+    theta = np.matmul(theta, y)
+    print theta.shape
+
+    n_test = 10000
+    x_test = mnist.test.images[:n_test, :]
+    y_test = mnist.test.labels[:n_test, :]
+    sq_dist_tf_test = cdist_tf(x_test, c).eval()
+    
+    # print sigma, beta
+    # print sq_dist_tf_test
+    sq_dist_tf_test = np.exp(-sq_dist_tf_test * beta)
+    print sq_dist_tf_test
+    sq_dist_tf_test = np.concatenate([np.ones([n_test, 1]), sq_dist_tf_test], axis=1)
+    # print sq_dist_tf_test
+    probs = np.matmul(sq_dist_tf_test, theta)
+    # print probs
+    test = np.argmax(probs, axis=1)
+    actual = np.argmax(y_test, axis=1)
+    boolarr = np.equal(test, actual)
+    # print test
+    # print actual
+    # print np.sum(boolarr) / float(n_test)
+    # weights = np.linalg.pinv(sq_dist_tf)
     # x_x = tf.matmul(inner_tf(x,x), tf.ones([1, n_centers])).eval()
     # c_c = tf.matmul(tf.ones([n_examples, 1]), tf.transpose(inner_tf(c,c))).eval()
     # x_c = tf.matmul(x, tf.transpose(c)).eval()
     # sq_dist_tf = x_x + c_c - 2 * x_c
-    print np.equal(np.round(sq_dist_np), np.round(sq_dist_tf))
+    # print sq_dist_np
+    # print sq_dist_tf
+    # print np.equal(np.round(sq_dist_np), np.round(sq_dist_tf))
 
 run_RBFN_MNIST_TF()
+# test_linalg()
 
 
