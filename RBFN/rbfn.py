@@ -149,12 +149,12 @@ def test_linalg():
     # sq_dist_np = cdist(x, c, 'sqeuclidean')
     sq_dist_tf = cdist_tf(x, c).eval()
     sq_dist_tf = np.exp(-sq_dist_tf * beta)
-    sq_dist_tf = np.concatenate([np.ones([n_examples, 1]), sq_dist_tf], axis=1)
-    # print sq_dist_tf
+    # sq_dist_tf = np.concatenate([np.ones([n_examples, 1]), sq_dist_tf], axis=1)
+    # print sq_dist_tf 
     theta = np.linalg.pinv(np.matmul(np.transpose(sq_dist_tf), sq_dist_tf))
     theta = np.matmul(theta, np.transpose(sq_dist_tf))
     theta = np.matmul(theta, y)
-    print theta.shape
+    # print theta.shape
 
     n_test = 10000
     x_test = mnist.test.images[:n_test, :]
@@ -165,16 +165,16 @@ def test_linalg():
     # print sq_dist_tf_test
     sq_dist_tf_test = np.exp(-sq_dist_tf_test * beta)
     print sq_dist_tf_test
-    sq_dist_tf_test = np.concatenate([np.ones([n_test, 1]), sq_dist_tf_test], axis=1)
+    # sq_dist_tf_test = np.concatenate([np.ones([n_test, 1]), sq_dist_tf_test], axis=1)
     # print sq_dist_tf_test
     probs = np.matmul(sq_dist_tf_test, theta)
     # print probs
     test = np.argmax(probs, axis=1)
     actual = np.argmax(y_test, axis=1)
     boolarr = np.equal(test, actual)
-    # print test
-    # print actual
-    # print np.sum(boolarr) / float(n_test)
+    print test
+    print actual
+    print np.sum(boolarr) / float(n_test)
     # weights = np.linalg.pinv(sq_dist_tf)
     # x_x = tf.matmul(inner_tf(x,x), tf.ones([1, n_centers])).eval()
     # c_c = tf.matmul(tf.ones([n_examples, 1]), tf.transpose(inner_tf(c,c))).eval()
@@ -184,7 +184,7 @@ def test_linalg():
     # print sq_dist_tf
     # print np.equal(np.round(sq_dist_np), np.round(sq_dist_tf))
 
-run_RBFN_MNIST_TF()
-# test_linalg()
+# run_RBFN_MNIST_TF()
+test_linalg()
 
 

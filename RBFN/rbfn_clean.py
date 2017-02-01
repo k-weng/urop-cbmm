@@ -53,10 +53,10 @@ def test_Iris_tf():
     sess = tf.InteractiveSession()
     tf.global_variables_initializer().run()
 
-    # cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=y, labels=y_)) + 0.1 * tf.nn.l2_loss(weights)
+    # cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=y, labels=y_)) + 0.01 * tf.nn.l2_loss(weights)
     cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=y, labels=y_))
-    # train_step = tf.train.GradientDescentOptimizer(0.03).minimize(cost)
-    train_step = tf.train.AdamOptimizer(1e-2).minimize(cost)
+    train_step = tf.train.GradientDescentOptimizer(0.01).minimize(cost)
+    # train_step = tf.train.AdamOptimizer(1e-2).minimize(cost)
     correct_prediction = tf.equal(tf.argmax(y,1), tf.argmax(y_,1))
     accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 
@@ -67,7 +67,9 @@ def test_Iris_tf():
         for i in range(len(train_x)):
             # print train_x[i: i+1]
             _, loss = sess.run([train_step, cost], feed_dict={x: train_x[i: i + 1], y_: train_y[i: i + 1]})
-            print loss
+            if epoch % 25 == 0 and i == len(train_x) - 1:
+                print loss
+
 
         train_accuracy = accuracy.eval(feed_dict={x:train_x, y_: train_y})
         test_accuracy  = accuracy.eval(feed_dict={x:test_x, y_: test_y})
@@ -92,6 +94,7 @@ def test_MNIST_tf():
     perm = np.arange(mnist.train.num_examples)
     np.random.shuffle(perm)
     c = mnist.train.images[perm][:n_centers, :]
+    print c.shape
 
     weights = tf.Variable(tf.truncated_normal([n_centers, n_classes], stddev=0.1))
     # biases = tf.Variable(tf.random_normal([1, n_classes], stddev=0.1))
@@ -100,7 +103,7 @@ def test_MNIST_tf():
     y = rbf_model(x, c, n_centers, weights, biases)
 
     sess = tf.InteractiveSession()
-    tf.global_variables_initializer().run()
+    # tf.global_variables_initializer().run()
 
     # cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=y, labels=y_)) + 0.1 * tf.nn.l2_loss(weights)
     cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=y, labels=y_))
@@ -110,18 +113,19 @@ def test_MNIST_tf():
     accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 
     sess.run(tf.global_variables_initializer())
-
     # losses = []
     for i in range(10000):
         batch = mnist.train.next_batch(100)
         # print type(batch[0])
+        if i % 10 == 0:
+            print batch[1].shape
 
         if i % 100 == 0:
             train_accuracy = accuracy.eval(feed_dict={x:batch[0], y_: batch[1]})
-            # print("step %d, training accuracy %g"%(i, train_accuracy))
+            print("step %d, training accuracy %g"%(i, train_accuracy))
 
         train_step.run(feed_dict={x: batch[0], y_: batch[1]})
-        _, loss = sess.run([train_step, cost], feed_dict={x: batch[0], y_: batch[1]})
+        sess.run([train_step, cost], feed_dict={x: batch[0], y_: batch[1]})
         # print loss
     # print sess.run(weights)
 
@@ -148,5 +152,5 @@ def rbf_model(inputs, centers, n_centers, weights, biases):
 
     return y
 
-# test_MNIST_tf()
-test_Iris_tf()
+test_MNIST_tf()
+# test_Iris_tf()
